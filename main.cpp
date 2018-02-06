@@ -145,7 +145,7 @@ void pointsToCSV(vector<vector<Point>> contours,string fname){
 			continue;
 		}
 		for(int j=0;j<contours[i].size();j++){
-			out<<contours[i][j].x<<", "<<contours[i][j].x<<endl;
+			out<<contours[i][j].x<<", "<<contours[i][j].y<<endl;
 		}
 		out<<"sep, sep"<<endl;
 	}
