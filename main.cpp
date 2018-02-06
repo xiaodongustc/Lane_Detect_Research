@@ -4,12 +4,17 @@
 #include "opencv2/features2d/features2d.hpp"
 #include "opencv2/imgproc.hpp"
 #include <iostream>
-
+#include <fstream>
+#include <stack>
 
 
 /** @function main */
+//---------------------define constant-----------------------
+
+#define CONTOURS_POINT_COUNT_THRESHOLD 150
 
 
+//---------------------define constant-----------------------
 //#include "AD_Util.h"
 using namespace std;
 using namespace cv;
@@ -95,7 +100,7 @@ void findDrawContours(Mat&src,Mat&dst){
     Canny(src,cannyed,240,253);
     findContours(cannyed, contours, RETR_LIST, CHAIN_APPROX_NONE);
     for(int i=0;i<contours.size();i++){
-        if(contours[i].size()<150){
+        if(contours[i].size()<CONTOURS_POINT_COUNT_THRESHOLD){
             continue;
         }
         drawContours(dst,contours,i,255,3);
@@ -106,7 +111,7 @@ void findDrawContours(Mat&src,Mat&dst){
 
 void drawFit(vector<vector<Point>> contours,Mat&dst){
     for(int i=0;i<contours.size();i++){
-        if(contours[i].size()<80){
+        if(contours[i].size()<40){
             continue;
         }
         Vec4f rst;
@@ -131,6 +136,71 @@ void drawFit(vector<vector<Point>> contours,Mat&dst){
         int x2=(y2-c)/(rst[1]/rst[0]);
         line(dst,Point(x1,y1),Point(x2,y2),Scalar(0,0,255),3);
     }
+}
+
+void pointsToCSV(vector<vector<Point>> contours,string fname){
+	ofstream out(fname);
+	for(int i=0;i<contours.size();i++){
+		if(contours[i].size()<40){
+			continue;
+		}
+		for(int j=0;j<contours[i].size();j++){
+			out<<contours[i][j].x<<", "<<contours[i][j].x<<endl;
+		}
+		out<<"sep, sep"<<endl;
+	}
+	out.close();
+}
+
+bool isInRange(Point center, Point tgt, int range){
+	return (tgt.x>=center.x-range) && (tgt.x<=center.x+range) && 
+		(tgt.y>=center.y-range) && (tgt.y<=center.y+range);
+}
+
+void pointsToCSV(Mat oframe, string fname){
+    ofstream out(fname);
+    Mat frame;
+    oframe.copyTo(frame);
+    vector<vector<Point>> contours;
+    vector<Point> collection;
+    for(int i=0;i<frame.cols;i++){
+    	for(int j=0;j<frame.rows;j++){
+    		if(frame.at<uchar>(i,j)!=0){
+    			collection.push_back(Point(i,j));
+    		}
+    	}
+    }
+    while(!collection.empty()){
+    	stack<Point> s;
+    	s.push(collection.back());
+    	collection.pop_back();
+    	vector<Point> v;
+    	while(!s.empty()){
+    		Point p=s.top();
+    		s.pop();
+    		v.push_back(p);
+    		for(int i=0;i<collection.size();i++){
+    			if(isInRange(p,collection[i],10)){
+    				//v.push_back(collection[i]);
+    				s.push(Point(collection[i].x,collection[i].y));
+    				collection.erase(collection.begin()+i);
+
+    			}
+    		}
+    	}
+    	contours.push_back(v);
+    }
+
+    for(int i=0;i<contours.size();i++){
+        if(contours[i].size()<300){
+            continue;
+        }
+        for(int j=0;j<contours[i].size();j++){
+            out<<contours[i][j].x<<", "<<contours[i][j].y<<endl;
+        }
+        out<<"sep, sep"<<endl;
+    }
+    out.close();
 }
 
 
@@ -167,11 +237,11 @@ int main(int argc, char** argv){
     findDrawContours(contoursImg,contoursImg2);
 
     transformImg(bluredImg,bluredImg,286);
-    bluredImg = bluredImg(Rect(0, 0, image.cols, image.rows -10));
+    //bluredImg = bluredImg(Rect(0, 0, image.cols, image.rows -10));
     transformImg(contoursImg2,contoursImg2,286);
     
-    line(contoursImg2,Point(0,image.rows/3),Point(image.cols,image.rows/3),0,5);
-    line(contoursImg2,Point(0,image.rows/3*2),Point(image.cols,image.rows/3*2),0,5); 
+    line(contoursImg2,Point(0,image.rows/3),Point(image.cols,image.rows/3),0,2);
+    line(contoursImg2,Point(0,image.rows/3*2),Point(image.cols,image.rows/3*2),0,2); 
     //cut the imag to 3 parts
 
     Mat binaryImg;
@@ -183,11 +253,16 @@ int main(int argc, char** argv){
     findContours(contoursImg2, contours2, RETR_LIST, CHAIN_APPROX_NONE);
 
     cout<<contours.size()<<", "<<contours2.size()<<endl;
-    drawFit(contours2,bluredImg);
+    drawFit(contours2,bluredImg); //draw the fit line onto the frame (canny algorithm);
 
+    //output points to csv file
+    //pointsToCSV(contours2,"points_canny_algr.csv");
+    //pointsToCSV(contours,"points_HSVThreshold_algr.csv");
+    pointsToCSV(binaryImg,"points_HSVThreshold_algr.csv");
+    pointsToCSV(contoursImg2,"points_Canny_algr.csv");
     //put the marked img back to original
     Mat backToOriginal;
-    transformImg(bluredImg,backToOriginal,-250);
+    transformImg(bluredImg,backToOriginal,-267);
 
     namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
     imshow( "Display window", bluredImg );
